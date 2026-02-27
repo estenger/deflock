@@ -14,58 +14,103 @@ I created this project after noticing the mass deployment of ALPRs in cities, to
 Uses OpenStreetMap data to populate a map with crowdsourced locations of ALPRs, along with their type and direction they face.
 
 ### Report ALPRs
-Provides OSM tags for easy reporting of ALPRs based on brand on OSM's editing site. Eventually, this will be a native feature of the site.
+Provides OSM tags for easy reporting of ALPRs based on brand on OSM's editing site, or through the DeFlock mobile app.
 
 ### Learn About ALPRs
-See photos of common ALPRs and learn about their capabilities.
+See photos of common ALPRs and other surveillance devices, and learn about their capabilities.
+
+### Blog & News
+Read news and articles about LPR surveillance, including syndicated content from haveibeenflocked.com.
+
+### Find Local Groups
+Browse a directory of local community groups working on surveillance issues.
 
 ## Tech Stack
 
-### Backend
-* Scala
-* PekkoHTTP
-* Nginx
+### Frontend
+* Vue3 + TypeScript
+* Vuetify (UI component library)
+* Leaflet (mapping library)
+* Pinia (state management)
+* Vite (build tool)
+
+### API
+* Bun + Fastify
+* Proxies geocoding (Nominatim) and GitHub sponsors
+
+### CMS
+* Directus (Docker, SQLite-backed)
+* Manages vendor info, chapters, blog posts, and win counts
 
 ### Cloud
-* AWS Lambda (for [region segmenting](serverless/alpr_clusters) and [counts](serverless/alpr_counts))
-* AWS S3
-* AWS ECR
-* Cloudflare as DNS + Proxy
-* Directus CDN
+* AWS Lambda (daily [ALPR tiling](serverless/alpr_cache), hourly [counts](serverless/alpr_counts), [blog scraping](serverless/blog_scraper))
+* AWS S3 (static JSON served via `cdn.deflock.me`)
+* Cloudflare (DNS, proxy, CDN cache)
+* Terraform (infrastructure as code)
 
-### Frontend
-* Vue3
-* Vuetify (UI component library)
-* Vue Leaflet (mapping library)
+### External Services
+* OpenStreetMap — Overpass API for ALPR data, map tiles
+* Nominatim — Geocoding (proxied through the API)
+* Wikimedia Commons — ALPR images linked from OSM tags
 
-### Services
-* OpenStreetMap - Overpass API, Basic Map Tiles
-* Nominatim - Geocoding
+## Repository Structure
+
+```
+deflock/
+├── webapp/           # Vue3 frontend (main user-facing site)
+├── api/              # Fastify API (geocoding, GitHub sponsors proxy)
+├── cms/              # Directus CMS (Docker-based, SQLite)
+├── serverless/       # AWS Lambda functions
+│   ├── alpr_cache/   # Generates map tiles daily (Docker Lambda)
+│   ├── alpr_counts/  # Counts total ALPRs hourly (zip Lambda)
+│   └── blog_scraper/ # Syncs RSS feed to CMS
+├── terraform/        # Infrastructure as code
+├── scripts/          # Utility scripts (Directus backup)
+```
 
 ## Usage
 
 ### Requirements
-* node/npm
-* scala/sbt
+* Node.js / npm (webapp)
+* Bun (API)
+* Docker (CMS — optional for frontend development)
 
-### Running Frontend
+### Running the Webapp
 
-1. `cd webapp`
-2. `npm i`
-3. `npm run dev`
+```sh
+cd webapp
+npm install
+npm run dev    # Dev server on port 5173
+```
 
-### Running Backend
+### Running the API
 
-#### Prerequisites
-* JDK 11
-* SBT
+```sh
+cd api
+bun install
+bun server.ts  # Dev server on port 3000
+```
 
-1. `cd shotgun`
-2. `sbt run`
+Requires a `GITHUB_TOKEN` in `api/.env` for the sponsors endpoint.
+
+### Running the CMS (optional)
+
+```sh
+cd cms
+docker compose up  # Runs Directus on port 8055
+```
+
+Requires `DIRECTUS_SECRET`, `CF_API_KEY`, and `CF_ZONE_ID` environment variables.
+
+The webapp always hits the production CMS (`cms.deflock.me`), so running it locally is not needed for frontend development.
 
 ### Building for Production
 
-See [Dockerfile](./Dockerfile).
+```sh
+cd webapp
+npm run build              # Production build
+npm run build-with-typecheck  # Type-check + build
+```
 
 ## Contributing
 
