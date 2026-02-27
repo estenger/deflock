@@ -70,24 +70,37 @@ cd serverless/alpr_cache
 
 ### Webapp Architecture
 
+**Services:**
 - **`src/services/apiService.ts`** — Axios client for `api.deflock.org`; uses `localhost:3000` when on localhost. Contains `BoundingBox` class used for map viewport queries.
-- **`src/services/cmsService.ts`** — Axios client for `cms.deflock.me`; fetches LPR vendor data, chapters, and non-LPR surveillance devices.
-- **`src/stores/vendorStore.ts`** — Pinia store caching LPR vendor and device data from CMS.
-- **`src/stores/global.ts`** — Pinia store for geolocation state.
-- **`src/stores/tiles.ts`** — Pinia store for map tile configuration.
+- **`src/services/cmsService.ts`** — Axios client for `cms.deflock.me`; fetches LPR vendor data, chapters, and non-LPR surveillance devices. Always hits production (no localhost detection).
+- **`src/services/blogService.ts`** — Axios client for `cms.deflock.me`; fetches paginated blog posts and individual post content.
 - **`src/services/deflockAppUrls.ts`** — Generates `deflockapp://` deep links for the DeFlock mobile app (profile import via base64-encoded JSON).
+
+**Stores (Pinia):**
+- **`src/stores/vendorStore.ts`** — Caches LPR vendor and device data from CMS (lazy-loaded).
+- **`src/stores/global.ts`** — Geolocation state (browser Geolocation API).
+- **`src/stores/tiles.ts`** — Manages ALPR tile data fetched from CDN/S3 (`cdn.deflock.me/regions/`). Tracks loaded tiles, prevents duplicate fetches.
+
+**Other key files:**
 - **`src/router/index.ts`** — Vue Router with all routes and `useHead` title updates on navigation.
 - **`src/types.ts`** — Shared TypeScript interfaces: `ALPR`, `LprVendor`, `OtherSurveillanceDevice`.
 
 ### API (Fastify)
 - Runs on port 3000
 - CORS allows `localhost:5173`, `deflock.org`, and `*.deflock.pages.dev` (Cloudflare Pages previews)
-- Services in `api/services/`: `NominatimClient` (geocoding), `GithubClient` (sponsors)
+- Services in `api/services/`: `NominatimClient` (geocoding, 24h disk cache), `GithubClient` (sponsors)
+- Endpoints: `GET /geocode`, `GET /sponsors/github`, `HEAD /healthcheck`
 
 ### CMS (Directus)
 - SQLite-backed Directus instance
 - Extensions in `cms/extensions/` for Cloudflare cache purging
+- Collections: `chapters`, `lprVendors`, `nonLprVendors`, `blog`, `flockWins`
 - Requires `DIRECTUS_SECRET`, `CF_API_KEY`, `CF_ZONE_ID` env vars
+
+### Serverless Functions
+- **alpr_cache** — Daily Lambda; queries Overpass for all ALPRs, segments into 20-degree tiles, uploads to S3 (`regions/*.json` + `regions/index.json`)
+- **alpr_counts** — Hourly Lambda; counts US ALPRs via Overpass, fetches wins from CMS, writes `alpr-counts.json` to S3
+- **blog_scraper** — Syncs RSS feed from haveibeenflocked.com into CMS blog collection
 
 ## Environment Variables
 
@@ -99,6 +112,12 @@ cd serverless/alpr_cache
 - `CF_API_KEY`
 - `CF_ZONE_ID`
 
+## Local Development Notes
+
+- The webapp auto-detects `localhost` and routes API calls to `localhost:3000` instead of `api.deflock.org`
+- The CMS service has **no localhost detection** — the webapp always hits `cms.deflock.me` (production). Running CMS locally is not needed for frontend development.
+- To validate the local API is being used: open browser DevTools Network tab and use the map search bar — requests should go to `localhost:3000/geocode`
+
 ## Key External Services
 
 - **Overpass API** — OSM ALPR data queries
@@ -107,3 +126,7 @@ cd serverless/alpr_cache
 - **AWS S3** — Static JSON storage for clusters/counts
 - **AWS Lambda** — Serverless compute for data processing
 - **GitHub Actions** — CI/CD; API deploys to production on push to `master`
+
+## Additional Documentation
+
+See `docs/architecture.md` for a detailed feature-to-service mapping, data flow diagrams, and user flow documentation.
